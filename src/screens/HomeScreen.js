@@ -6,25 +6,28 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../config/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useLearningStore } from '../store/learningStore';
 
 const CHAPTERS = [
-  { id: 1, title: 'Everyday Vocabulary', icon: '📚' },
-  { id: 2, title: 'Communication Vocabulary', icon: '💬' },
-  { id: 3, title: 'Professional Vocabulary', icon: '💼' },
-  { id: 4, title: 'Interview Vocabulary', icon: '🎤' },
-  { id: 5, title: 'Advanced Vocabulary', icon: '🚀' },
+  { id: 1, title: 'Everyday Vocabulary', icon: '📚', color: '#4F46E5' },
+  { id: 2, title: 'Communication', icon: '💬', color: '#7C3AED' },
+  { id: 3, title: 'Professional', icon: '💼', color: '#0EA5E9' },
+  { id: 4, title: 'Interview Ready', icon: '🎤', color: '#EC4899' },
+  { id: 5, title: 'Advanced Mastery', icon: '🚀', color: '#F59E0B' },
 ];
 
 const MILESTONES = [
   { days: 7, icon: '🌱', label: 'Seed' },
   { days: 15, icon: '🌿', label: 'Sprout' },
   { days: 30, icon: '🌳', label: 'Tree' },
-  { days: 45, icon: '🔥', label: 'Dedicated Learner' },
-  { days: 90, icon: '🏆', label: 'Consistency Champion' },
+  { days: 45, icon: '🔥', label: 'Dedicated' },
+  { days: 90, icon: '🏆', label: 'Champion' },
 ];
 
 const HomeScreen = ({ navigation }) => {
@@ -55,7 +58,6 @@ const HomeScreen = ({ navigation }) => {
         setCurrentChapter(data.currentChapter || 1);
       }
 
-      // Fetch completed chapters
       const { data: quizData } = await supabase
         .from('quiz_results')
         .select('chapterId')
@@ -80,9 +82,7 @@ const HomeScreen = ({ navigation }) => {
 
   const getNextMilestone = () => {
     for (let milestone of MILESTONES) {
-      if (streak < milestone.days) {
-        return milestone;
-      }
+      if (streak < milestone.days) return milestone;
     }
     return null;
   };
@@ -96,7 +96,6 @@ const HomeScreen = ({ navigation }) => {
       Alert.alert('Locked', 'Complete previous chapters to unlock this one.');
       return;
     }
-
     setCurrentChapter(chapterId);
     navigation.navigate('WordLearning', { chapterId });
   };
@@ -112,224 +111,342 @@ const HomeScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Loading your journey...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome back! 👋</Text>
-          <Text style={styles.level}>{userData?.level || 'Beginner'}</Text>
-        </View>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Streak Section */}
-      <View style={styles.streakSection}>
-        <View style={styles.streakCard}>
-          <Text style={styles.streakIcon}>🔥</Text>
-          <Text style={styles.streakLabel}>Current Streak</Text>
-          <Text style={styles.streakCount}>{userData?.streak || 0} days</Text>
-        </View>
-
-        {nextMilestone && (
-          <View style={styles.milestoneCard}>
-            <Text style={styles.milestoneIcon}>{nextMilestone.icon}</Text>
-            <Text style={styles.milestoneLabel}>
-              Next: {nextMilestone.label}
-            </Text>
-            <Text style={styles.milestoneDays}>
-              {daysUntilMilestone} days away
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Chapters Staircase */}
-      <View style={styles.chaptersSection}>
-        <Text style={styles.sectionTitle}>Your Learning Path</Text>
-        <View style={styles.staircase}>
-          {CHAPTERS.map((chapter, index) => {
-            const status = getChapterStatus(chapter.id);
-            const isCompleted = status === 'completed';
-            const isUnlocked = status === 'unlocked';
-
-            return (
-              <TouchableOpacity
-                key={chapter.id}
-                style={[
-                  styles.chapterStep,
-                  {
-                    marginLeft: index * 15,
-                    backgroundColor: isCompleted
-                      ? '#34C759'
-                      : isUnlocked
-                        ? '#007AFF'
-                        : '#e0e0e0',
-                  },
-                ]}
-                onPress={() => handleChapterPress(chapter.id)}
-                disabled={!isUnlocked && !isCompleted}
-              >
-                <Text style={styles.stepIcon}>{chapter.icon}</Text>
-                <Text
-                  style={[
-                    styles.stepText,
-                    !isUnlocked && !isCompleted && { color: '#999' },
-                  ]}
-                >
-                  {chapter.title}
-                </Text>
-                <Text style={styles.stepStatus}>
-                  {isCompleted ? '✓' : isUnlocked ? '🔓' : '🔒'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Continue Learning */}
-      <TouchableOpacity
-        style={styles.continueButton}
-        onPress={() =>
-          navigation.navigate('WordLearning', { chapterId: currentChapter })
-        }
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.continueButtonText}>Continue Learning →</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Welcome back! 👋</Text>
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>
+                {userData?.level || 'Beginner'} Level
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, styles.streakCard]}>
+            <Text style={styles.statIcon}>🔥</Text>
+            <Text style={styles.statValue}>{userData?.streak || 0}</Text>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.milestoneCard]}>
+            <Text style={styles.statIcon}>{nextMilestone?.icon || '🏆'}</Text>
+            <Text style={styles.statValue}>{daysUntilMilestone}</Text>
+            <Text style={styles.statLabel}>Days to Next</Text>
+          </View>
+
+          <View style={[styles.statCard, styles.progressCard]}>
+            <Text style={styles.statIcon}>📊</Text>
+            <Text style={styles.statValue}>
+              {completedChapters.length}/{CHAPTERS.length}
+            </Text>
+            <Text style={styles.statLabel}>Chapters</Text>
+          </View>
+        </View>
+
+        {/* Chapters */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Learning Path</Text>
+          <View style={styles.chaptersList}>
+            {CHAPTERS.map((chapter, index) => {
+              const status = getChapterStatus(chapter.id);
+              const isCompleted = status === 'completed';
+              const isUnlocked = status === 'unlocked';
+              const isLocked = status === 'locked';
+
+              return (
+                <TouchableOpacity
+                  key={chapter.id}
+                  style={[
+                    styles.chapterCard,
+                    isCompleted && {
+                      backgroundColor: chapter.color,
+                      shadowColor: chapter.color,
+                    },
+                    isUnlocked && {
+                      backgroundColor: '#FFFFFF',
+                      borderColor: chapter.color,
+                      borderWidth: 2,
+                    },
+                    isLocked && {
+                      backgroundColor: '#F1F5F9',
+                      borderColor: '#E2E8F0',
+                      borderWidth: 1.5,
+                    },
+                  ]}
+                  onPress={() => handleChapterPress(chapter.id)}
+                  disabled={isLocked}
+                  activeOpacity={0.85}
+                >
+                  <View
+                    style={[
+                      styles.chapterIconCircle,
+                      isCompleted && { backgroundColor: 'rgba(255,255,255,0.2)' },
+                      isUnlocked && { backgroundColor: `${chapter.color}15` },
+                      isLocked && { backgroundColor: '#E2E8F0' },
+                    ]}
+                  >
+                    <Text style={styles.chapterIcon}>{chapter.icon}</Text>
+                  </View>
+                  <View style={styles.chapterInfo}>
+                    <Text
+                      style={[
+                        styles.chapterTitle,
+                        isCompleted && { color: '#FFFFFF' },
+                        isUnlocked && { color: '#0F172A' },
+                        isLocked && { color: '#94A3B8' },
+                      ]}
+                    >
+                      {chapter.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.chapterStatus,
+                        isCompleted && { color: 'rgba(255,255,255,0.8)' },
+                        isUnlocked && { color: chapter.color },
+                        isLocked && { color: '#CBD5E1' },
+                      ]}
+                    >
+                      {isCompleted
+                        ? 'Completed ✓'
+                        : isUnlocked
+                        ? 'In Progress'
+                        : 'Locked'}
+                    </Text>
+                  </View>
+                  <View style={styles.chapterArrow}>
+                    <Text
+                      style={[
+                        styles.arrowText,
+                        isCompleted && { color: '#FFFFFF' },
+                        isUnlocked && { color: chapter.color },
+                        isLocked && { color: '#CBD5E1' },
+                      ]}
+                    >
+                      {isLocked ? '🔒' : '→'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Continue CTA */}
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={() =>
+            navigation.navigate('WordLearning', { chapterId: currentChapter })
+          }
+          activeOpacity={0.85}
+        >
+          <Text style={styles.continueButtonText}>
+            Continue Learning →
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
   },
   header: {
-    backgroundColor: '#fff',
-    padding: 20,
-    paddingTop: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
-  level: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
+  levelBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  levelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  logoutButton: {
+    padding: 8,
   },
   logoutText: {
-    color: '#FF3B30',
+    color: '#EF4444',
     fontWeight: '600',
+    fontSize: 14,
   },
-  streakSection: {
+  statsRow: {
     flexDirection: 'row',
-    padding: 20,
-    gap: 15,
+    gap: 12,
+    marginBottom: 28,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   streakCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9500',
-  },
-  streakIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  streakLabel: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 5,
-  },
-  streakCount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    borderLeftColor: '#F59E0B',
   },
   milestoneCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderLeftWidth: 4,
-    borderLeftColor: '#34C759',
+    borderLeftColor: '#10B981',
   },
-  milestoneIcon: {
-    fontSize: 32,
+  progressCard: {
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4F46E5',
+  },
+  statIcon: {
+    fontSize: 24,
     marginBottom: 8,
   },
-  milestoneLabel: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 5,
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
   },
-  milestoneDays: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  chaptersSection: {
-    padding: 20,
+  section: {
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 16,
+    letterSpacing: -0.3,
   },
-  staircase: {
-    gap: 15,
+  chaptersList: {
+    gap: 12,
   },
-  chapterStep: {
-    padding: 15,
-    borderRadius: 12,
+  chapterCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  chapterIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
-    minHeight: 80,
+    alignItems: 'center',
+    marginRight: 16,
   },
-  stepIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+  chapterIcon: {
+    fontSize: 24,
   },
-  stepText: {
+  chapterInfo: {
+    flex: 1,
+  },
+  chapterTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  chapterStatus: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
   },
-  stepStatus: {
-    marginTop: 5,
-    fontSize: 14,
+  chapterArrow: {
+    marginLeft: 8,
+  },
+  arrowText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   continueButton: {
-    margin: 20,
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 12,
+    backgroundColor: '#0F172A',
+    padding: 18,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   continueButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 16,
   },
 });

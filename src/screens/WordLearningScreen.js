@@ -6,6 +6,9 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../config/supabase';
 import { useAuthStore } from '../store/authStore';
@@ -14,7 +17,7 @@ import { useLearningStore } from '../store/learningStore';
 const WordLearningScreen = ({ navigation, route }) => {
   const { chapterId } = route.params;
   const { user } = useAuthStore();
-  const { addLearnedWord, learnedWords } = useLearningStore();
+  const { addLearnedWord } = useLearningStore();
   const [words, setWords] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -33,15 +36,11 @@ const WordLearningScreen = ({ navigation, route }) => {
         .limit(5);
 
       if (error) {
-        console.error('Error fetching words:', error);
-        // Use sample data if database is not ready
-        const sampleWords = getSampleWords(chapterId);
-        setWords(sampleWords);
+        setWords(getSampleWords(chapterId));
       } else {
         setWords(data || getSampleWords(chapterId));
       }
     } catch (error) {
-      console.error('Error:', error);
       setWords(getSampleWords(chapterId));
     } finally {
       setLoading(false);
@@ -91,7 +90,6 @@ const WordLearningScreen = ({ navigation, route }) => {
     const word = words[currentWordIndex];
 
     try {
-      // Save to database
       await supabase.from('user_words').upsert({
         userId: user.id,
         wordId: word.id,
@@ -99,22 +97,26 @@ const WordLearningScreen = ({ navigation, route }) => {
       });
 
       addLearnedWord(word.id);
-      setLearnedToday(learnedToday + 1);
+      const newLearned = learnedToday + 1;
+      setLearnedToday(newLearned);
 
       if (currentWordIndex < words.length - 1) {
-        setCurrentWordIndex(currentWordIndex + 1);
+        setCurrentWordIndex((prev) => prev + 1);
       } else {
-        // All words learned today
         Alert.alert(
-          'Great!',
-          `You've learned ${learnedToday + 1} words today. Practice these in sentences now!`,
+          'Session Complete! 🎉',
+          `You've learned ${newLearned} words today. Ready to practice them in sentences?`,
           [
             {
               text: 'Practice Sentences',
               onPress: () =>
                 navigation.navigate('SentencePractice', { chapterId }),
             },
-            { text: 'Back to Home', onPress: () => navigation.replace('Home') },
+            {
+              text: 'Back to Home',
+              onPress: () => navigation.replace('Home'),
+              style: 'cancel',
+            },
           ],
         );
       }
@@ -125,17 +127,22 @@ const WordLearningScreen = ({ navigation, route }) => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading words...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Loading words...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (words.length === 0) {
     return (
-      <View style={styles.container}>
-        <Text>No words found for this chapter.</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No words found for this chapter.</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -143,128 +150,221 @@ const WordLearningScreen = ({ navigation, route }) => {
   const progress = ((currentWordIndex + 1) / words.length) * 100;
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Chapter {chapterId}: Daily Learning</Text>
-      </View>
-
-      <View style={styles.progressSection}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
-        <Text style={styles.progressText}>
-          {currentWordIndex + 1} of {words.length}
-        </Text>
-      </View>
-
-      <View style={styles.wordCard}>
-        <Text style={styles.word}>{currentWord.word}</Text>
-
-        <View style={styles.meaningSection}>
-          <Text style={styles.label}>Meaning</Text>
-          <Text style={styles.meaning}>{currentWord.meaning}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            Chapter {chapterId}
+          </Text>
         </View>
 
-        <View style={styles.exampleSection}>
-          <Text style={styles.label}>Example</Text>
-          <Text style={styles.example}>"{currentWord.example}"</Text>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          </View>
+          <View style={styles.progressRow}>
+            <Text style={styles.progressText}>
+              Word {currentWordIndex + 1} of {words.length}
+            </Text>
+            <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+          </View>
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleMarkLearned}>
-          <Text style={styles.buttonText}>Mark as Learned ✓</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <View style={styles.wordCard}>
+          <View style={styles.wordBadge}>
+            <Text style={styles.word}>{currentWord.word}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Definition</Text>
+            <Text style={styles.meaning}>{currentWord.meaning}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Example</Text>
+            <View style={styles.exampleBox}>
+              <Text style={styles.example}>"{currentWord.example}"</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.learnButton}
+            onPress={handleMarkLearned}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.learnButtonText}>Mark as Learned ✓</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  content: {
     padding: 20,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748B',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 20,
-    marginTop: 20,
   },
   backButton: {
+    padding: 4,
+  },
+  backText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '600',
-    marginBottom: 10,
+    color: '#4F46E5',
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.3,
   },
-  progressSection: {
-    marginBottom: 30,
+  progressContainer: {
+    gap: 8,
+    marginBottom: 24,
   },
-  progressBar: {
+  progressTrack: {
     height: 6,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#E2E8F0',
     borderRadius: 3,
-    marginBottom: 10,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#34C759',
+    backgroundColor: '#10B981',
+    borderRadius: 3,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   progressText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  progressPercent: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '700',
   },
   wordCard: {
-    backgroundColor: '#f0f4ff',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+    gap: 24,
+  },
+  wordBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 16,
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    alignSelf: 'center',
+    borderWidth: 2,
+    borderColor: '#C7D2FE',
   },
   word: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 20,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#4F46E5',
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
-  label: {
+  section: {
+    gap: 8,
+  },
+  sectionLabel: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#999',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#94A3B8',
     textTransform: 'uppercase',
-  },
-  meaningSection: {
-    marginBottom: 20,
+    letterSpacing: 0.8,
   },
   meaning: {
     fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
+    color: '#334155',
+    lineHeight: 26,
+    fontWeight: '500',
   },
-  exampleSection: {
-    marginBottom: 30,
+  exampleBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
   },
   example: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#475569',
     fontStyle: 'italic',
-    lineHeight: 20,
+    lineHeight: 24,
   },
-  button: {
-    backgroundColor: '#34C759',
-    padding: 15,
-    borderRadius: 8,
+  learnButton: {
+    backgroundColor: '#10B981',
+    padding: 18,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 8,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  learnButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 16,
   },
 });

@@ -6,6 +6,7 @@ import { supabase } from './src/config/supabase';
 import { useAuthStore } from './src/store/authStore';
 
 // Screens
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import AssessmentScreen from './src/screens/AssessmentScreen';
@@ -21,7 +22,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { user, setUser, setSession: setAuthSession } = useAuthStore();
+  const { setUser, setSession: setAuthSession } = useAuthStore();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,10 +56,12 @@ export default function App() {
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
+            animation: 'slide_from_right',
           }}
         >
           {!session ? (
             <>
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Signup" component={SignupScreen} />
             </>
@@ -84,7 +87,7 @@ export default function App() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </>
   );
 }

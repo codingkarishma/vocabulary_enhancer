@@ -5,7 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
+  SafeAreaView,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../config/supabase';
 import { useAuthStore } from '../store/authStore';
@@ -28,12 +30,10 @@ const QuizScreen = ({ navigation, route }) => {
 
   const fetchQuestions = async () => {
     try {
-      // For MVP, use generated questions
       const quizQuestions = generateQuizQuestions(chapterId);
       setQuestions(quizQuestions);
     } catch (error) {
       console.error('Error:', error);
-      setQuestions(generateQuizQuestions(chapterId));
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ const QuizScreen = ({ navigation, route }) => {
           type: 'meaning',
           question: 'What is the meaning of "Serendipity"?',
           options: [
-            'The occurrence of events by chance in a happy or beneficial way',
+            'The occurrence of events by chance in a happy way',
             'Sadness and sorrow',
             'Complete failure',
             'Planned success',
@@ -60,7 +60,7 @@ const QuizScreen = ({ navigation, route }) => {
           question: 'What does "Eloquent" mean?',
           options: [
             'Quiet and reserved',
-            'Fluent, persuasive, and expressive in speaking or writing',
+            'Fluent, persuasive, and expressive',
             'Confused and unclear',
             'Loud and aggressive',
           ],
@@ -235,32 +235,29 @@ const QuizScreen = ({ navigation, route }) => {
         },
       ],
     };
-
     return questionsByChapter[chapter] || [];
   };
 
   const handleAnswer = (optionIndex) => {
+    if (answered) return;
     setSelectedOption(optionIndex);
     setAnswered(true);
-
     if (optionIndex === questions[currentQuestion].correct) {
-      setScore(score + 1);
+      setScore((prev) => prev + 1);
     }
   };
 
   const handleNext = async () => {
     if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
+      setCurrentQuestion((prev) => prev + 1);
       setAnswered(false);
       setSelectedOption(null);
     } else {
-      // Quiz complete
       const percentage = (score / questions.length) * 100;
       const passed = percentage >= 80;
 
       addQuizResult(chapterId, score);
 
-      // Save to database
       try {
         const { error } = await supabase.from('quiz_results').insert({
           userId: user.id,
@@ -268,12 +265,9 @@ const QuizScreen = ({ navigation, route }) => {
           score,
           passed,
         });
-
         if (error && error.code !== '23505') {
           console.error('Error saving quiz result:', error);
         }
-
-        // Update user progress
         if (passed) {
           await supabase
             .from('users')
@@ -296,163 +290,326 @@ const QuizScreen = ({ navigation, route }) => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading quiz...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Preparing quiz...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (questions.length === 0) {
     return (
-      <View style={styles.container}>
-        <Text>No questions available.</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No questions available.</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   const question = questions[currentQuestion];
   const progress = ((currentQuestion + 1) / questions.length) * 100;
 
+  const getOptionStyle = (index) => {
+    if (!answered) {
+      return selectedOption === index ? styles.optionSelected : styles.option;
+    }
+    if (index === question.correct) return styles.optionCorrect;
+    if (selectedOption === index && index !== question.correct)
+      return styles.optionIncorrect;
+    return styles.option;
+  };
+
+  const getOptionTextStyle = (index) => {
+    if (!answered) {
+      return selectedOption === index
+        ? styles.optionTextSelected
+        : styles.optionText;
+    }
+    if (index === question.correct) return styles.optionTextCorrect;
+    if (selectedOption === index && index !== question.correct)
+      return styles.optionTextIncorrect;
+    return styles.optionText;
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Chapter {chapterId} Quiz</Text>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
-        <Text style={styles.progressText}>
-          Question {currentQuestion + 1} of {questions.length}
-        </Text>
-      </View>
-
-      <View style={styles.questionContainer}>
-        <Text style={styles.question}>{question.question}</Text>
-        <Text style={styles.type}>Type: {question.type}</Text>
-
-        <View style={styles.optionsContainer}>
-          {question.options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.option,
-                selectedOption === index && styles.optionSelected,
-                answered && index === question.correct && styles.optionCorrect,
-                answered &&
-                  selectedOption === index &&
-                  index !== question.correct &&
-                  styles.optionIncorrect,
-              ]}
-              onPress={() => handleAnswer(index)}
-              disabled={answered}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  (selectedOption === index || index === question.correct) &&
-                    styles.optionTextActive,
-                ]}
-              >
-                {option}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Chapter {chapterId} Quiz</Text>
+          <View style={styles.progressContainer}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress}%` }]} />
+            </View>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressText}>
+                Question {currentQuestion + 1} of {questions.length}
               </Text>
-            </TouchableOpacity>
-          ))}
+              <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+            </View>
+          </View>
         </View>
-      </View>
 
-      {answered && (
-        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-          <Text style={styles.nextButtonText}>
-            {currentQuestion === questions.length - 1 ? 'See Results' : 'Next'}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </ScrollView>
+        <View style={styles.card}>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeText}>{question.type}</Text>
+          </View>
+          <Text style={styles.question}>{question.question}</Text>
+
+          <View style={styles.optionsContainer}>
+            {question.options.map((option, index) => (
+              <TouchableOpacity
+                key={index}
+                style={getOptionStyle(index)}
+                onPress={() => handleAnswer(index)}
+                disabled={answered}
+                activeOpacity={0.8}
+              >
+                <View style={styles.optionRow}>
+                  <View
+                    style={[
+                      styles.optionLetter,
+                      answered &&
+                        index === question.correct &&
+                        styles.optionLetterCorrect,
+                      answered &&
+                        selectedOption === index &&
+                        index !== question.correct &&
+                        styles.optionLetterIncorrect,
+                      !answered &&
+                        selectedOption === index &&
+                        styles.optionLetterSelected,
+                    ]}
+                  >
+                    <Text style={styles.optionLetterText}>
+                      {String.fromCharCode(65 + index)}
+                    </Text>
+                  </View>
+                  <Text style={getOptionTextStyle(index)}>{option}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {answered && (
+          <TouchableOpacity
+            style={styles.nextButton}
+            onPress={handleNext}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.nextButtonText}>
+              {currentQuestion === questions.length - 1
+                ? 'See Results'
+                : 'Next Question'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  content: {
     padding: 20,
+    paddingBottom: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748B',
   },
   header: {
-    marginBottom: 30,
-    marginTop: 20,
+    marginBottom: 24,
   },
-  title: {
+  headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 16,
+    letterSpacing: -0.5,
   },
-  progressBar: {
+  progressContainer: {
+    gap: 8,
+  },
+  progressTrack: {
     height: 6,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#E2E8F0',
     borderRadius: 3,
-    marginBottom: 10,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#5856D6',
+    backgroundColor: '#4F46E5',
+    borderRadius: 3,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   progressText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
   },
-  questionContainer: {
-    marginBottom: 30,
+  progressPercent: {
+    fontSize: 13,
+    color: '#4F46E5',
+    fontWeight: '700',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  typeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C3AED',
+    textTransform: 'capitalize',
   },
   question: {
     fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  type: {
-    fontSize: 12,
-    color: '#5856D6',
-    marginBottom: 20,
-    textTransform: 'capitalize',
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 26,
+    marginBottom: 24,
   },
   optionsContainer: {
-    gap: 10,
+    gap: 12,
   },
   option: {
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    padding: 15,
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#FAFBFC',
   },
   optionSelected: {
-    borderColor: '#5856D6',
+    borderColor: '#4F46E5',
+    backgroundColor: '#EEF2FF',
   },
   optionCorrect: {
-    borderColor: '#34C759',
-    backgroundColor: '#d1f4d1',
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
   },
   optionIncorrect: {
-    borderColor: '#FF3B30',
-    backgroundColor: '#ffd1d1',
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  optionLetter: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  optionLetterSelected: {
+    backgroundColor: '#4F46E5',
+  },
+  optionLetterCorrect: {
+    backgroundColor: '#10B981',
+  },
+  optionLetterIncorrect: {
+    backgroundColor: '#EF4444',
+  },
+  optionLetterText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
   },
   optionText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: 15,
+    color: '#334155',
+    flex: 1,
+    lineHeight: 22,
   },
-  optionTextActive: {
+  optionTextSelected: {
+    fontSize: 15,
+    color: '#4F46E5',
+    flex: 1,
     fontWeight: '600',
+    lineHeight: 22,
+  },
+  optionTextCorrect: {
+    fontSize: 15,
+    color: '#059669',
+    flex: 1,
+    fontWeight: '600',
+    lineHeight: 22,
+  },
+  optionTextIncorrect: {
+    fontSize: 15,
+    color: '#DC2626',
+    flex: 1,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   nextButton: {
-    backgroundColor: '#5856D6',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#4F46E5',
+    padding: 18,
+    borderRadius: 14,
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 24,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   nextButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 16,
   },
 });
